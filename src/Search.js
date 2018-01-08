@@ -1,63 +1,100 @@
 import React, {Component} from 'react'
-import { Link } from 'react-router-dom'
-import StringRegExp from 'escape-string-regexp'
+import {Link} from 'react-router-dom'
+import {Debounce} from 'react-throttle'
+import {search, getAll} from './BooksAPI'
+import BooksList from './BooksList'
+
+const mapBookShelf = (mainBooks, searchBooks) =>
+  searchBooks.map((searchBook) => {
+    const foundMainBook = mainBooks.filter((mainBook) => mainBook.id === searchBook.id);
+
+    return {
+      ...searchBook,
+      shelf: foundMainBook.length ? foundMainBook[0].shelf : "none"
+    }
+  });
 
 class Search extends Component {
+  constructor(props) {
+    super(props);
 
-  state = {
-    searchText: ''
+    this.state = {
+      books: [],
+      error: false,
+      errorMsg: null
+    }
   }
 
-  updateSearchText=(text)=>{
-    this.setState({searchText: text.trim()})
-  }
+  handleOnChange = (e) => {
+    const searchQuery = e.target.value;
+    if (searchQuery === "") {
+      return false;
+    }
+
+    search(searchQuery, 20).then((searchBooks) => {
+      if (searchBooks.error) {
+        this.setState({
+          error: true,
+          errorMsg: searchBooks.error
+        });
+
+        return false;
+      }
+
+      getAll().then((mainBooks) => {
+        this.setState({
+          books: mapBookShelf(mainBooks, searchBooks),
+          error: false
+        });
+      });
+    });
+  };
+
+  updateBooksSelection = (id) => {
+    this.setState((state) => ({
+      ...state,
+      books: state.books.filter((book) => book.id !== id),
+    }))
+  };
 
   render() {
-
-    let showingBooks
-    if(this.state.searchText){
-      const match = new RegExp(StringRegExp(this.state.searchText), 'i')
-      //Filter By Title or Author(s)
-      showingBooks = this.props.books.filter((book) => match.test(book.title) || match.test(book.authors))
-    }
-    else{
-      showingBooks = this.props.books
-    }
-
-    return(
+    const {books, error, errorMsg} = this.state;
+    return (
       <div className="search-books">
         <div className="search-books-bar">
           <Link className="close-search" to="/">Close</Link>
           <div className="search-books-input-wrapper">
-            <input type="text" placeholder="Search by title or author"
-                   value={this.state.searchText}
-                   onChange={(event)=>this.updateSearchText(event.target.value)}
-            />
+            <Debounce time="400" handler="onChange">
+              <input
+                name="searchQuery"
+                onChange={(e) => this.handleOnChange(e)}
+                type="text"
+                placeholder="Search by title or author"
+              />
+            </Debounce>
           </div>
         </div>
         <div className="search-books-results">
-          <ol className="books-grid">
-            {showingBooks.map(book=>
-              <li key={book.id}>
-                <div className="book">
-                  <div className="book-top">
-                    <div className="book-cover" style={{ width: 128, height: 193, backgroundImage: `url(${book.imageLinks.thumbnail})` }}></div>
-                    <div className="book-shelf-changer">
-                      <select value={this.props.value} onChange={(event)=>this.props.onUpdateShelf(book, event.target.value)}>
-                        <option value="none" disabled>Move to...</option>
-                        <option value="currentlyReading" selected={book.shelf==="currentlyReading"}>Currently Reading</option>
-                        <option value="wantToRead" selected={book.shelf==="wantToRead"}>Want to Read</option>
-                        <option value="read" selected={book.shelf==="read"}>Read</option>
-                        <option value="none" selected={book.shelf==="none"}>None</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="book-title">{book.title}</div>
-                  <div className="book-authors">{book.authors}</div>
-                </div>
-              </li>
-            )}
-          </ol>
+
+          {!error && books.length === 0 && (
+            <p>Enter something in above search box and press enter to search for your favorite books</p>
+          )}
+
+          {error && (
+            <p>{errorMsg}</p>
+          )}
+
+          {!error && books.length > 0 && (
+            <ol className="books-grid">
+              {books.map((book) => (
+                <BooksList
+                  key={book.id}
+                  {...book}
+                  updateBooks={this.updateBooksSelection}
+                />
+              ))}
+            </ol>
+          )}
         </div>
       </div>
     )
