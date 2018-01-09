@@ -5,11 +5,11 @@ import Select from './Select'
 
 class BooksList extends Component {
   handleOnChange = (selectEvent) => {
-    const {updateBooks} = this.props;
+    const {updateShelf} = this.props;
     const shelf = selectEvent.target.value;
     update(this.props, shelf).then((res) => {
-      if (updateBooks) {
-        updateBooks(this.props.id)
+      if (updateShelf) {
+        updateShelf(this.props.id)
       }
     });
   };
